@@ -48,7 +48,7 @@ jobs:
 
   # MacOS x86_64 build (Intel)
   MacOSX64:
-    runs-on: macos-13
+    runs-on: macos-14 # Using Apple Silicon runner to cross-compile for Intel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
