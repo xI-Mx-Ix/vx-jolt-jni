@@ -1,0 +1,134 @@
+name: Build Native Binaries
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  # Linux x86_64 build
+  Linux64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - name: Build Shared Library
+        run: ./gradlew nativesJarLinux64ReleaseSp -Ptarget=Linux64 --console=plain
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-Linux64
+          path: build/libs/joltjni/shared/linux64/release/sp/*
+
+  # Linux ARM64 build using cross-compiler
+  Linux_ARM64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - name: Install Cross-Compiler
+        run: |
+          sudo apt-get update
+          sudo apt install g++-10-aarch64-linux-gnu
+          aarch64-linux-gnu-g++-10 --version
+      - name: Build Shared Library
+        run: ./gradlew nativesJarLinux_ARM64ReleaseSp -Ptarget=Linux_ARM64 --console=plain
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-Linux_ARM64
+          path: build/libs/joltjni/shared/linux_arm64/release/sp/*
+
+  # MacOS x86_64 build (Intel)
+  MacOSX64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - name: Build Shared Library
+        run: ./gradlew nativesJarMacOSX64ReleaseSp -Ptarget=MacOSX64 --console=plain
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-MacOSX64
+          path: build/libs/joltjni/shared/macosx64/release/sp/*
+
+  # MacOS ARM64 build (Apple Silicon)
+  MacOSX_ARM64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - name: Build Shared Library
+        run: ./gradlew nativesJarMacOSX_ARM64ReleaseSp -Ptarget=MacOSX_ARM64 --console=plain
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-MacOSX_ARM64
+          path: build/libs/joltjni/shared/macosx_arm64/release/sp/*
+
+  # Windows x86_64 build
+  Windows64:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - name: Build Shared Library
+        run: ./gradlew nativesJarWindows64ReleaseSp -Ptarget=Windows64 --console=plain
+        shell: bash
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-Windows64
+          path: build/libs/joltjni/shared/windows64/release/sp/*
+
+  # Final job to collect all artifacts and update the rolling release
+  release:
+    name: Update Rolling Release
+    needs: [Linux64, Linux_ARM64, MacOSX64, MacOSX_ARM64, Windows64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare Release Files
+        run: |
+          mkdir -p release
+          find artifacts -name "*.dll" -exec cp {} release/ \;
+          find artifacts -name "*.so" -exec cp {} release/ \;
+          find artifacts -name "*.dylib" -exec cp {} release/ \;
+          find artifacts -name "*.lib" -exec cp {} release/ \;
+
+      - name: Continuous Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous Build
+          body: |
+            Automatically built native binaries from the latest master branch.
+            Each binary contains both Jolt Physics core and JNI glue code.
+            Symbols are exported for direct C++ linking.
+          files: release/*
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
