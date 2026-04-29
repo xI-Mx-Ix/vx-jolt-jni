@@ -2,13 +2,24 @@ name: Build Native Binaries
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
-  # Linux x86_64 build
+  # Job to provide the version string to other jobs
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: get_version
+        run: |
+          VERSION=$(grep "^jjVersion =" gradle.properties | cut -d'=' -f2 | xargs)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
   Linux64:
+    needs: prepare
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -16,16 +27,22 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 21
-      - name: Build Shared Library
-        run: ./gradlew nativesJarLinux64ReleaseSp -Ptarget=Linux64 --console=plain
-      - name: Upload Build Artifacts
+      - name: Build
+        run: ./gradlew nativesJarLinux64ReleaseDp jar -Ptarget=Linux64 --console=plain
+      - name: Prepare Artifact
+        run: |
+          mkdir dist
+          find build/libs -name "*.so" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-linux-x64-ReleaseDp.so \;
+          cp build/libs/jolt-jni-${{ needs.prepare.outputs.version }}.jar dist/
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: native-libs-Linux64
-          path: build/libs/joltjni/shared/linux64/release/sp/*
+          name: joltjni-linux-x64
+          path: dist/*
 
   # Linux ARM64 build using cross-compiler
   Linux_ARM64:
+    needs: prepare
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -36,18 +53,22 @@ jobs:
       - name: Install Cross-Compiler
         run: |
           sudo apt-get update
-          sudo apt install g++-10-aarch64-linux-gnu
-          aarch64-linux-gnu-g++-10 --version
-      - name: Build Shared Library
-        run: ./gradlew nativesJarLinux_ARM64ReleaseSp -Ptarget=Linux_ARM64 --console=plain
-      - name: Upload Build Artifacts
+          sudo apt install -y g++-10-aarch64-linux-gnu
+      - name: Build
+        run: ./gradlew nativesJarLinux_ARM64ReleaseDp -Ptarget=Linux_ARM64 --console=plain
+      - name: Prepare Artifact
+        run: |
+          mkdir dist
+          find build/libs -name "*.so" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-linux-arm64-ReleaseDp.so \;
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: native-libs-Linux_ARM64
-          path: build/libs/joltjni/shared/linux_arm64/release/sp/*
+          name: joltjni-linux-arm64
+          path: dist/*
 
   # MacOS x86_64 build (Intel)
   MacOSX64:
+    needs: prepare
     runs-on: macos-14 # Using Apple Silicon runner to cross-compile for Intel
     steps:
       - uses: actions/checkout@v4
@@ -55,16 +76,21 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 21
-      - name: Build Shared Library
-        run: ./gradlew nativesJarMacOSX64ReleaseSp -Ptarget=MacOSX64 --console=plain
-      - name: Upload Build Artifacts
+      - name: Build
+        run: ./gradlew nativesJarMacOSX64ReleaseDp -Ptarget=MacOSX64 --console=plain
+      - name: Prepare Artifact
+        run: |
+          mkdir dist
+          find build/libs -name "*.dylib" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-macos-x64-ReleaseDp.dylib \;
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: native-libs-MacOSX64
-          path: build/libs/joltjni/shared/macosx64/release/sp/*
+          name: joltjni-macos-x64
+          path: dist/*
 
   # MacOS ARM64 build (Apple Silicon)
   MacOSX_ARM64:
+    needs: prepare
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -72,16 +98,21 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 21
-      - name: Build Shared Library
-        run: ./gradlew nativesJarMacOSX_ARM64ReleaseSp -Ptarget=MacOSX_ARM64 --console=plain
-      - name: Upload Build Artifacts
+      - name: Build
+        run: ./gradlew nativesJarMacOSX_ARM64ReleaseDp -Ptarget=MacOSX_ARM64 --console=plain
+      - name: Prepare Artifact
+        run: |
+          mkdir dist
+          find build/libs -name "*.dylib" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-macos-arm64-ReleaseDp.dylib \;
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: native-libs-MacOSX_ARM64
-          path: build/libs/joltjni/shared/macosx_arm64/release/sp/*
+          name: joltjni-macos-arm64
+          path: dist/*
 
   # Windows x86_64 build
   Windows64:
+    needs: prepare
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -89,19 +120,25 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 21
-      - name: Build Shared Library
-        run: ./gradlew nativesJarWindows64ReleaseSp -Ptarget=Windows64 --console=plain
+      - name: Build
+        run: ./gradlew nativesJarWindows64ReleaseDp -Ptarget=Windows64 --console=plain
         shell: bash
-      - name: Upload Build Artifacts
+      - name: Prepare Artifact
+        run: |
+          mkdir dist
+          find build/libs -name "*.dll" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-windows-x64-ReleaseDp.dll \;
+          find build/libs -name "*.lib" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-windows-x64-ReleaseDp.lib \;
+        shell: bash
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: native-libs-Windows64
-          path: build/libs/joltjni/shared/windows64/release/sp/*
+          name: joltjni-windows-x64
+          path: dist/*
 
   # Final job to collect all artifacts and update the rolling release
   release:
     name: Update Rolling Release
-    needs: [Linux64, Linux_ARM64, MacOSX64, MacOSX_ARM64, Windows64]
+    needs: [prepare, Linux64, Linux_ARM64, MacOSX64, MacOSX_ARM64, Windows64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -109,25 +146,16 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-
-      - name: Prepare Release Files
-        run: |
-          mkdir -p release
-          find artifacts -name "*.dll" -exec cp {} release/ \;
-          find artifacts -name "*.so" -exec cp {} release/ \;
-          find artifacts -name "*.dylib" -exec cp {} release/ \;
-          find artifacts -name "*.lib" -exec cp {} release/ \;
+          path: release
+          merge-multiple: true # Flattens all artifacts into the 'release' directory
 
       - name: Continuous Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: continuous
-          name: Continuous Build
+          name: Continuous Build (v${{ needs.prepare.outputs.version }})
           body: |
-            Automatically built native binaries from the latest master branch.
-            Each binary contains both Jolt Physics core and JNI glue code.
-            Symbols are exported for direct C++ linking.
+            All binaries are Double Precision and include core symbols.
           files: release/*
           prerelease: true
         env:
