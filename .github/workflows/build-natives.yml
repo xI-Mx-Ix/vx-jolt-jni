@@ -135,9 +135,9 @@ jobs:
           name: joltjni-windows-x64
           path: dist/*
 
-  # Final job to collect all artifacts and update the rolling release
+  # Final job to collect all artifacts and create a stable release
   release:
-    name: Update Rolling Release
+    name: Create Stable Release
     needs: [prepare, Linux64, Linux_ARM64, MacOSX64, MacOSX_ARM64, Windows64]
     runs-on: ubuntu-latest
     permissions:
@@ -149,14 +149,16 @@ jobs:
           path: release
           merge-multiple: true # Flattens all artifacts into the 'release' directory
 
-      - name: Continuous Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: continuous
-          name: Continuous Build (v${{ needs.prepare.outputs.version }})
+          tag_name: v${{ needs.prepare.outputs.version }}
+          name: Release v${{ needs.prepare.outputs.version }}
           body: |
+            Automated release for version ${{ needs.prepare.outputs.version }}.
             All binaries are Double Precision and include core symbols.
           files: release/*
-          prerelease: true
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
