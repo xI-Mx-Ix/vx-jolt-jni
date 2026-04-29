@@ -16,7 +16,8 @@ jobs:
       - id: get_version
         run: |
           VERSION=$(grep "^jjVersion =" gradle.properties | cut -d'=' -f2 | xargs)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHA=$(git rev-parse --short HEAD)
+          echo "version=$VERSION-$SHA" >> $GITHUB_OUTPUT
 
   Linux64:
     needs: prepare
@@ -33,7 +34,7 @@ jobs:
         run: |
           mkdir dist
           find build/libs -name "*.so" -exec cp {} dist/joltjni-${{ needs.prepare.outputs.version }}-linux-x64-ReleaseDp.so \;
-          cp build/libs/jolt-jni-${{ needs.prepare.outputs.version }}.jar dist/
+          find build/libs -name "*.jar" -exec cp {} dist/jolt-jni-${{ needs.prepare.outputs.version }}.jar \;
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -152,8 +153,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.prepare.outputs.version }}
-          name: Release v${{ needs.prepare.outputs.version }}
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: Release ${{ needs.prepare.outputs.version }}
           body: |
             Automated release for version ${{ needs.prepare.outputs.version }}.
             All binaries are Double Precision and include core symbols.
